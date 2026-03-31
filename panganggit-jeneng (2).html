@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="jv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PANGANGGIT JENENG</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&family=Noto+Serif+Javanese&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --hijau: #00ff41;
+  --hijau-dim: #00b32c;
+  --hijau-redup: #003a0e;
+  --hitam: #000d02;
+  --amber: #ffb300;
+  --merah: #ff2200;
+  --biru: #00b3ff;
+}
+
+html, body { height: 100%; background: var(--hitam); color: var(--hijau); font-family: 'Share Tech Mono', monospace; overflow-x: hidden; }
+
+/* CRT scanlines */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(to bottom, transparent 0px, transparent 3px, rgba(0,0,0,0.18) 3px, rgba(0,0,0,0.18) 4px);
+  pointer-events: none; z-index: 9999;
+}
+/* CRT vignette */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.75) 100%);
+  pointer-events: none; z-index: 9998;
+}
+
+@keyframes flicker {
+  0%,94%,100% { opacity: 1; }
+  95% { opacity: 0.9; }
+  97% { opacity: 0.95; }
+}
+
+.terminal {
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 2rem 1rem;
+  animation: flicker 9s infinite;
+}
+
+.window {
+  width: 100%; max-width: 640px;
+  border: 1px solid var(--hijau-dim);
+  box-shadow: 0 0 0 1px var(--hijau-redup), 0 0 40px rgba(0,255,65,0.08), inset 0 0 80px rgba(0,255,65,0.02);
+}
+
+/* Title bar */
+.titlebar {
+  background: var(--hijau-dim);
+  padding: 0.3rem 0.8rem;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--hijau-dim);
+}
+.titlebar-title { font-family: 'VT323', monospace; font-size: 1rem; color: var(--hitam); letter-spacing: 0.1rem; }
+.titlebar-dots { display: flex; gap: 5px; }
+.titlebar-dots span { width: 10px; height: 10px; border-radius: 50%; background: var(--hitam); opacity: 0.4; display: block; }
+.titlebar-rec { font-size: 0.7rem; color: var(--hitam); opacity: 0.5; }
+
+.content { padding: 1.5rem 2rem 2rem; position: relative; }
+
+.prompt-line { font-size: 0.72rem; color: var(--hijau-dim); margin-bottom: 0.25rem; letter-spacing: 0.05rem; opacity: 0.7; }
+.prompt-line::before { content: '> '; color: var(--amber); }
+
+.aksara-header {
+  text-align: center;
+  font-family: 'Noto Serif Javanese', serif;
+  font-size: 2rem; color: var(--hijau-dim);
+  letter-spacing: 0.3rem; margin: 0.8rem 0 0.3rem;
+  opacity: 0.45; text-shadow: 0 0 8px rgba(0,255,65,0.3);
+}
+
+.sys-title {
+  font-family: 'VT323', monospace;
+  font-size: clamp(2.2rem, 9vw, 3.2rem);
+  text-align: center; color: var(--hijau);
+  letter-spacing: 0.15rem;
+  text-shadow: 0 0 10px rgba(0,255,65,0.8), 0 0 30px rgba(0,255,65,0.3);
+  line-height: 1; margin-bottom: 0.1rem;
+}
+.sys-sub {
+  font-size: 0.68rem; text-align: center;
+  color: var(--hijau-dim); letter-spacing: 0.25rem;
+  text-transform: uppercase; margin-bottom: 1.5rem; opacity: 0.7;
+}
+
+.div-line { border: none; border-top: 1px solid var(--hijau-redup); margin: 1rem 0; }
+.div-line-bright { border: none; border-top: 1px solid var(--hijau-dim); margin: 1rem 0; box-shadow: 0 0 6px rgba(0,255,65,0.2); }
+
+/* Output box — bintangnya */
+.output-box {
+  border: 1px solid var(--hijau-dim);
+  padding: 0.7rem 1rem 1.2rem;
+  margin: 1.2rem 0;
+  position: relative;
+  background: rgba(0,255,65,0.02);
+  box-shadow: inset 0 0 40px rgba(0,255,65,0.03), 0 0 20px rgba(0,255,65,0.05);
+  min-height: 140px;
+  display: flex; flex-direction: column; align-items: flex-start;
+}
+
+.output-label {
+  font-size: 0.65rem; color: var(--amber);
+  letter-spacing: 0.2rem; margin-bottom: 0.5rem; opacity: 0.9;
+}
+.output-label::before { content: '[ '; }
+.output-label::after  { content: ' ]'; }
+
+#result {
+  font-family: 'VT323', monospace;
+  font-size: clamp(2.8rem, 11vw, 4.5rem);
+  color: var(--hijau); line-height: 1;
+  text-shadow: 0 0 15px rgba(0,255,65,0.9), 0 0 40px rgba(0,255,65,0.4);
+  word-break: break-word; white-space: normal; width: 100%;
+  letter-spacing: 0.05rem;
+  min-height: 3.5rem;
+  position: relative;
+}
+#result.idle { color: var(--hijau-redup); text-shadow: none; opacity: 0.5; }
+
+/* Cursor */
+.cursor {
+  display: inline-block; width: 0.5em; height: 0.85em;
+  background: var(--hijau); margin-left: 3px; vertical-align: middle;
+  animation: blink 1s step-end infinite;
+  box-shadow: 0 0 8px rgba(0,255,65,0.8);
+}
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* Glitch layers */
+@keyframes gl1 {
+  0%   { clip-path: inset(20% 0 60% 0); transform: translate(-4px,0); }
+  33%  { clip-path: inset(60% 0 10% 0); transform: translate(4px,0); }
+  66%  { clip-path: inset(10% 0 75% 0); transform: translate(-2px,0); }
+  100% { clip-path: inset(0 0 0 0);     transform: translate(0,0); }
+}
+@keyframes gl2 {
+  0%   { clip-path: inset(50% 0 20% 0); transform: translate(4px,0); color: var(--biru); }
+  33%  { clip-path: inset(5% 0 80% 0);  transform: translate(-4px,0); color: var(--merah); }
+  66%  { clip-path: inset(75% 0 5% 0);  transform: translate(2px,0); color: var(--biru); }
+  100% { clip-path: inset(0 0 0 0);     transform: translate(0,0); color: var(--hijau); }
+}
+
+#result.glitching::before,
+#result.glitching::after {
+  content: attr(data-text);
+  position: absolute; left: 0; top: 0; width: 100%;
+  font-family: 'VT323', monospace; font-size: inherit;
+  letter-spacing: inherit; line-height: inherit;
+  text-shadow: none;
+}
+#result.glitching::before { animation: gl1 0.28s steps(1) forwards; color: var(--merah); }
+#result.glitching::after  { animation: gl2 0.28s steps(1) forwards; }
+
+#sandhi-badge {
+  display: none; font-size: 0.68rem; color: var(--amber);
+  margin-top: 0.6rem; letter-spacing: 0.05rem; opacity: 0.8;
+}
+#sandhi-badge::before { content: '// '; opacity: 0.5; }
+
+/* Tombol */
+.btn-row { display: flex; gap: 0.6rem; margin: 0.8rem 0; }
+
+.btn {
+  font-family: 'VT323', monospace; font-size: 1.3rem;
+  letter-spacing: 0.1rem; cursor: pointer;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--hijau-dim); background: transparent; color: var(--hijau);
+  text-transform: uppercase; transition: all 0.1s; position: relative; overflow: hidden;
+}
+.btn-primary {
+  flex: 1; border-color: var(--hijau);
+  color: var(--hitam); background: var(--hijau-dim);
+  box-shadow: 0 0 15px rgba(0,255,65,0.2);
+}
+.btn-primary:hover { background: var(--hijau); box-shadow: 0 0 30px rgba(0,255,65,0.5); }
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary { flex: 0 0 auto; color: var(--hijau-dim); border-color: var(--hijau-redup); font-size: 1rem; padding: 0.5rem 0.8rem; }
+.btn-secondary:hover { border-color: var(--hijau-dim); color: var(--hijau); }
+.btn-secondary.ok { color: var(--amber); border-color: var(--amber); }
+
+#counter { font-size: 0.62rem; color: var(--hijau-redup); letter-spacing: 0.1rem; opacity: 0.6; text-align: right; margin-bottom: 0.5rem; }
+
+.riwayat-header { font-size: 0.65rem; color: var(--hijau-dim); letter-spacing: 0.2rem; margin-bottom: 0.5rem; opacity: 0.6; }
+.riwayat-header::before { content: '$ '; color: var(--amber); }
+
+#riwayat { display: flex; flex-wrap: wrap; gap: 0.4rem; min-height: 24px; }
+
+.riwayat-item {
+  font-family: 'VT323', monospace; font-size: 1.05rem;
+  color: var(--hijau-dim); border: 1px solid var(--hijau-redup);
+  padding: 1px 10px; cursor: pointer; letter-spacing: 0.05rem; transition: all 0.1s;
+}
+.riwayat-item:hover { color: var(--hijau); border-color: var(--hijau-dim); background: rgba(0,255,65,0.05); box-shadow: 0 0 8px rgba(0,255,65,0.1); }
+
+/* Status bar */
+.statusbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.3rem 0.8rem;
+  border-top: 1px solid var(--hijau-redup);
+  background: rgba(0,255,65,0.02);
+  font-size: 0.62rem; color: var(--hijau-redup); letter-spacing: 0.1rem;
+}
+.statusbar a { color: var(--hijau-dim); text-decoration: none; font-weight: bold; }
+.statusbar a:hover { color: var(--hijau); }
+
+.status-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--hijau); margin-right: 5px;
+  box-shadow: 0 0 6px rgba(0,255,65,0.8); animation: blink 2s ease infinite;
+}
+
+@media (max-width: 480px) {
+  .content { padding: 1rem 1.2rem 1.5rem; }
+  #result { font-size: clamp(2rem, 12vw, 3.2rem); }
+  .btn { font-size: 1.1rem; }
+  .aksara-header { font-size: 1.5rem; }
+}
+</style>
+</head>
+<body>
+<div class="terminal">
+  <div class="window">
+
+    <div class="titlebar">
+      <div class="titlebar-dots"><span></span><span></span><span></span></div>
+      <div class="titlebar-title">JENENG.SYS v2.0 — JAWI OS</div>
+      <div class="titlebar-rec">●REC</div>
+    </div>
+
+    <div class="content">
+      <div class="prompt-line">INITIALIZING PANGANGGIT MODULE...</div>
+      <div class="prompt-line">JAVANESE NAME DATABASE LOADED [<span style="color:var(--hijau)">OK</span>]</div>
+
+      <div class="aksara-header">ꦥꦔꦁꦒꦶꦠ꧀ꦗꦼꦤꦼꦁ</div>
+      <div class="sys-title">PANGANGGIT JENENG</div>
+      <div class="sys-sub">// Javanese Name Generator //</div>
+
+      <hr class="div-line-bright">
+
+      <div class="output-box">
+        <div class="output-label">OUTPUT :: ASMANIPUN</div>
+        <div id="result" class="idle" data-text="___">___<span class="cursor"></span></div>
+        <div id="sandhi-badge"></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-generate" onclick="generateName()">▶ GENERATE NAME</button>
+        <button class="btn btn-secondary" id="btn-salin" onclick="salinNama()">SALIN</button>
+      </div>
+
+      <div id="counter">GENERATED: <span id="gen-count">0</span> NAMES</div>
+
+      <hr class="div-line">
+
+      <div class="riwayat-header">RECENT HISTORY</div>
+      <div id="riwayat"></div>
+    </div>
+
+    <div class="statusbar">
+      <div><span class="status-dot"></span>ONLINE</div>
+      <div>SPACE = GENERATE</div>
+      <div>BY <a href="https://x.com/NetflixJW" target="_blank">@NETFLIXJW</a></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const namaDepan = ["mangun","mangku","wojo","ambar","setyo","padmo","wedyo","wignyo","pujo","puji","puspo","sastro","pringgo","citro","sekar","ranu","danu","aryo","arum","tirto","suryo","santa","karto","wigyo","suro","ronggo","sasro","purwo","cokro","lembu","paku","bayu","noto","wrekso","sindu","yoso","sudiro","prayu","cipto","hadi","haryo","pramu","pamong","sani","narto","broto","marto","jati","midera","dirgo","jiwa","joyo","tejo","pandu","atmo","wiro","dipo","purbo","kresno","merto","cahyo","wongso","yomo","panoto","rekso","gondo","darko","hando","bodro","arung","prawoto","projo","darmo","budi"];
+const namaBelakang = ["atmojo","kusumo","sentiko","sumantri","saroso","husodo","aji","nirmolo","wiyatno","wiguno","kinanthi","asmoro","dikromo","wiloso","nugroho","wiyarti","ningrum","ningtyas","mentaram","dipuro","pasuti","tenoyo","prati","dati","darsono","anggoro","utomo","utami","wiratmo","wirono","sadewo","negaran","tyaso","pradoto","pawitro","pasuwiryo","musthiko","suyatno","sangkoyo","sarsadi","puspito","sugondo","suwanto","dirjo","darmo","suroto","yudo","pratomo","wening","lesmi","binang","wijoyo","darmojo","waluyo","suwiryo","gayatri","retno","winoto","sumantro","pranoto","amiseno","laksito","sumarto","wigati","priansari","wijatmoko","lastri","wanto","martono","dono","wardono","somo","widagdo","waskito","warsito","mudyo","winangun","alam","digdo","waseso","wiryo","setro","wardoyo","dilogo","kuncoro","karyo","projo","wibowo","hadi","siswo","amijoyo","direjo","yuwono","loyo","suwandito","siwojo","padmoyo","hantoro","darmanto","mono","yumono","nolo","dibyo","sudibyo","harjo","purwoko","sudarto","miharjo","winarso","wihastuti","diwijo","wilojo","santi","seto","seno","kartiyoso","prawoto","sayekti","legowo","guritno","handoyo"];
+
+let riwayat = [];
+let namaTerakhir = '';
+let genCount = 0;
+let isAnimating = false;
+
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+function setFontSize(el, text) {
+  const len = text.length;
+  if      (len <= 12) el.style.fontSize = 'clamp(2.8rem, 11vw, 4.5rem)';
+  else if (len <= 17) el.style.fontSize = 'clamp(2.2rem, 8vw, 3.6rem)';
+  else if (len <= 22) el.style.fontSize = 'clamp(1.9rem, 7vw, 3rem)';
+  else                el.style.fontSize = 'clamp(1.6rem, 6vw, 2.5rem)';
+}
+
+function generateName() {
+  if (isAnimating) return;
+  isAnimating = true;
+
+  const resultDiv = document.getElementById('result');
+  const sandhiBadge = document.getElementById('sandhi-badge');
+  const btn = document.getElementById('btn-generate');
+
+  btn.textContent = '■ PROCESSING...';
+  btn.disabled = true;
+  sandhiBadge.style.display = 'none';
+
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ꦲꦤꦕꦫꦏ#@%&';
+  let ticks = 0;
+
+  const scramble = setInterval(() => {
+    const len = 8 + Math.floor(Math.random() * 6);
+    let s = '';
+    for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    resultDiv.classList.remove('idle', 'glitching');
+    resultDiv.textContent = s;
+    resultDiv.style.color = ticks % 2 === 0 ? '#ff2200' : '#00b3ff';
+    resultDiv.style.textShadow = 'none';
+    resultDiv.style.fontSize = 'clamp(2rem, 8vw, 3rem)';
+    ticks++;
+    if (ticks >= 7) { clearInterval(scramble); reveal(); }
+  }, 55);
+
+  function reveal() {
+    const d = namaDepan[Math.floor(Math.random() * namaDepan.length)];
+    const b = namaBelakang[Math.floor(Math.random() * namaBelakang.length)];
+    const namaAsli = capitalize(d + b);
+    let finalDisplay = namaAsli;
+    let sandhi = '';
+
+    const dLast = d.at(-1), bFirst = b[0];
+    if ((dLast==='o'&&bFirst==='a')||(dLast==='a'&&bFirst==='a')||
+        (dLast==='a'&&bFirst==='i')||(dLast==='o'&&bFirst==='u')||
+        (dLast==='i'&&bFirst==='a')) {
+      sandhi = 'ALT: ' + capitalize(d.slice(0,-1) + b);
+    }
+
+    namaTerakhir = finalDisplay;
+    genCount++;
+    document.getElementById('gen-count').textContent = genCount;
+
+    resultDiv.setAttribute('data-text', finalDisplay);
+    resultDiv.textContent = finalDisplay;
+    const cur = document.createElement('span');
+    cur.className = 'cursor';
+    resultDiv.appendChild(cur);
+
+    resultDiv.style.color = 'var(--hijau)';
+    resultDiv.style.textShadow = '0 0 15px rgba(0,255,65,0.9), 0 0 40px rgba(0,255,65,0.4)';
+    resultDiv.classList.add('glitching');
+    setFontSize(resultDiv, finalDisplay);
+
+    setTimeout(() => {
+      resultDiv.classList.remove('glitching');
+      isAnimating = false;
+      btn.textContent = '▶ GENERATE NAME';
+      btn.disabled = false;
+    }, 320);
+
+    if (sandhi) { sandhiBadge.style.display = 'block'; sandhiBadge.textContent = sandhi; }
+
+    if (!riwayat.includes(finalDisplay)) {
+      riwayat.unshift(finalDisplay);
+      if (riwayat.length > 5) riwayat.pop();
+      renderRiwayat();
+    }
+  }
+}
+
+function renderRiwayat() {
+  document.getElementById('riwayat').innerHTML =
+    riwayat.map(n => `<span class="riwayat-item" onclick="pakaiNama('${n}')">${n.toUpperCase()}</span>`).join('');
+}
+
+function pakaiNama(nama) {
+  if (isAnimating) return;
+  namaTerakhir = nama;
+  const el = document.getElementById('result');
+  el.classList.remove('idle','glitching');
+  el.setAttribute('data-text', nama);
+  el.textContent = nama;
+  el.style.color = 'var(--hijau)';
+  el.style.textShadow = '0 0 15px rgba(0,255,65,0.9), 0 0 40px rgba(0,255,65,0.4)';
+  setFontSize(el, nama);
+  const cur = document.createElement('span');
+  cur.className = 'cursor';
+  el.appendChild(cur);
+  document.getElementById('sandhi-badge').style.display = 'none';
+}
+
+function salinNama() {
+  if (!namaTerakhir || namaTerakhir === '___') return;
+  navigator.clipboard.writeText(namaTerakhir).then(() => {
+    const btn = document.getElementById('btn-salin');
+    btn.textContent = '✓ OK';
+    btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = 'SALIN'; btn.classList.remove('ok'); }, 1500);
+  });
+}
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); generateName(); }
+});
+</script>
+</body>
+</html>
